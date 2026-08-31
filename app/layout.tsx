@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "PromptForge — generatore di prompt per AI",
+  title: "PromptForge — prompt engineering strutturato",
   description:
-    "Costruisci prompt strutturati per Claude, GPT, Gemini e generatori di immagini. Locale e istantaneo, con affinamento opzionale via AI.",
+    "Costruisci prompt professionali per Claude, GPT e Gemini: tag XML o markdown, few-shot, casi limite, difese anti-invenzione e punteggio di qualità. Tutto in locale, con rifinitura AI opzionale.",
 };
 
 export const viewport: Viewport = {

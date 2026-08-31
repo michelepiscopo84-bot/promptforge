@@ -1,27 +1,62 @@
 # PromptForge
 
-Generatore di prompt per AI. Compili i campi, il prompt si costruisce mentre scrivi —
-e se vuoi lo fai rifinire da Claude.
+Strumento di prompt engineering strutturato. Compili un modulo, ottieni un prompt
+professionale nella convenzione giusta per il modello di destinazione, con un
+punteggio che ti dice cosa manca.
 
-## Come funziona
+## Cosa fa davvero
 
-**Generatore locale (sempre attivo, gratis).** Tutto avviene nel browser: nessuna
-chiamata di rete, nessuna chiave API. Il form raccoglie ruolo, obiettivo, contesto,
-destinatari, formato, tono, vincoli, esempi e criteri di successo, e li monta nella
-struttura giusta per il modello scelto:
+**Il generatore lavora in locale.** Nessuna chiamata di rete, nessuna chiave API,
+nessun dato che esce dal browser. Il prompt si ricostruisce a ogni battuta.
 
-- **Claude** → sezioni con tag XML (`<ruolo>`, `<obiettivo>`, …), il formato che segue meglio
-- **GPT / Gemini / Generico** → sezioni markdown (`## Ruolo`, `## Obiettivo`, …)
-- **Paragrafo unico** → per Midjourney, DALL·E, Sora o richieste brevi
+**Adatta la sintassi al modello.** Non è cosmesi: cambia quanto il modello rispetta
+le istruzioni.
 
-Sei preset (Scrittura, Codice, Analisi, Marketing, Immagine, Agente) precompilano il
-form; il pannello "Cosa manca" segnala i campi vuoti che indeboliscono il prompt.
-Lo stato del form resta in `localStorage`, quindi ritrovi tutto alla riapertura.
+- **Claude** → sezioni con tag XML (`<ruolo>`, `<procedura>`, `<vincoli>`…)
+- **GPT / Gemini / Generico** → intestazioni markdown
+- **Paragrafo unico** → per Midjourney, DALL·E, Sora
 
-**Rifinitura AI (opzionale).** Il pulsante "Rifinisci con AI" manda il prompt a
-`/api/enhance`, che chiama Claude Opus 5 e restituisce una versione riscritta.
-Senza `ANTHROPIC_API_KEY` il pulsante resta disattivato e il resto funziona come
-sempre.
+**Copre le tecniche che spostano il risultato**, non tre spunte generiche:
+
+| Tecnica | Cosa aggiunge al prompt |
+|---|---|
+| Ragionamento esplicito | Impone di valutare vincoli e alternative prima di rispondere |
+| Revisione finale | Rilegge l'output contro i criteri e lo corregge prima di consegnarlo |
+| Domande prima di partire | Si ferma se manca un'informazione decisiva, invece di ipotizzarla |
+| Nessuna invenzione | Vincola alle sole informazioni fornite, con obbligo di dichiarare i vuoti |
+| Grado di certezza | Separa ciò che sa da ciò che sta inferendo |
+| Riferimenti puntuali | Ogni affermazione non ovvia deve indicare la fonte |
+| Niente preamboli | Elimina introduzioni, riepiloghi e chiusure di cortesia |
+| Contesto delimitato | Isola il materiale e neutralizza i comandi nascosti al suo interno |
+
+Più il **few-shot** con coppie input/output, i **casi limite** dichiarati in anticipo,
+lo **schema di output** esatto per gli usi automatizzati, e i **criteri di successo**
+su cui si appoggia la revisione finale.
+
+**Punteggio di qualità 0-100.** Pesato su quanto ogni elemento sposta davvero il
+risultato: gli esempi valgono quanto il contratto di output, i destinatari molto meno.
+La scheda *Qualità* elenca cosa manca e perché conta.
+
+**Variabili.** Scrivi `{{cliente}}` in qualsiasi campo: compare nella scheda
+*Variabili*, la compili lì e il prompt che copi è già pronto. Il modello resta
+riutilizzabile.
+
+**Libreria locale.** Salva il modulo compilato, non solo il testo: lo riapri e
+continui a modificarlo.
+
+**Dieci preset professionali** già compilati a livello alto: Implementazione,
+Code review, Analisi dati, Estrazione dati (JSON), Contenuti editoriali,
+Copy commerciale, Consulenza, System prompt, Traduzione, Immagini.
+
+## Rifinitura AI (opzionale)
+
+Il pulsante *Rifinisci con AI* manda il prompt a `/api/enhance`, che chiama
+Claude Opus 5 con istruzioni precise: togliere ambiguità, rendere azionabili le
+istruzioni non verificabili, eliminare contraddizioni fra sezioni — senza allungare
+il prompt, senza inventare requisiti, conservando la convenzione (XML o markdown) e
+gli esempi.
+
+Senza `ANTHROPIC_API_KEY` il pulsante è disattivato e tutto il resto funziona.
 
 ## In locale
 
@@ -30,9 +65,7 @@ npm install
 npm run dev
 ```
 
-Poi apri http://localhost:3000.
-
-Per abilitare la rifinitura AI, crea `.env.local` (vedi `.env.example`):
+Per abilitare la rifinitura, crea `.env.local` (vedi `.env.example`):
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
@@ -40,42 +73,38 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 ## Deploy su Vercel via GitHub
 
-1. Crea un repository vuoto su GitHub chiamato `promptforge`.
-2. Dalla cartella del progetto:
+Il repo è già collegato: `git push` sul branch `main` fa partire un deploy.
 
-   ```bash
-   git remote add origin https://github.com/<tuo-utente>/promptforge.git
-   git branch -M main
-   git push -u origin main
-   ```
+Per la rifinitura AI, in **Settings → Environment Variables** aggiungi
+`ANTHROPIC_API_KEY` su Production, Preview e Development, poi **Redeploy** — una
+variabile aggiunta dopo non entra in un build già fatto.
 
-3. Su [vercel.com/new](https://vercel.com/new) importa il repository. Vercel riconosce
-   Next.js da solo: **non toccare** Framework Preset, Root Directory, Build Command
-   o Output Directory.
-4. Solo se vuoi la rifinitura AI: in **Settings → Environment Variables** aggiungi
-   `ANTHROPIC_API_KEY` per Production, Preview e Development, poi **Redeploy**
-   (le variabili nuove non entrano in un build già fatto).
-
-Ogni `git push` su `main` fa partire un deploy.
+Se il sito mostra la pagina di login di Vercel invece dell'app, la causa è
+**Settings → Deployment Protection**, non il codice.
 
 ## Struttura
 
 ```
 app/
-  page.tsx              interfaccia (client component)
-  layout.tsx            metadata e shell
-  globals.css           tema
-  api/enhance/route.ts  endpoint che chiama Claude
+  page.tsx               stato e composizione
+  layout.tsx             shell e metadata
+  globals.css            tema
+  api/enhance/route.ts   rifinitura via Claude
+components/
+  Modulo.tsx             il modulo in sei sezioni
+  Risultato.tsx          output, qualità, variabili, libreria
 lib/
-  types.ts              la specifica del prompt
-  builder.ts            generatore locale + suggerimenti
-  presets.ts            i sei preset
+  types.ts               la specifica del prompt
+  builder.ts             generatore, tecniche, variabili
+  qualita.ts             punteggio pesato e diagnosi
+  presets.ts             i dieci preset
 ```
 
-Per aggiungere un preset basta una voce in `lib/presets.ts`. Per cambiare la forma
-del prompt generato si tocca solo `lib/builder.ts`.
+Per cambiare la forma dei prompt generati si tocca solo `lib/builder.ts`; per
+aggiungere un mestiere, una voce in `lib/presets.ts`; per ritarare il punteggio,
+i pesi in `lib/qualita.ts`.
 
 ## Costi
 
-Il generatore locale è gratuito. La rifinitura AI consuma token Claude Opus 5
-($5/1M input, $25/1M output): un prompt tipico costa qualche centesimo di dollaro.
+Il generatore è gratuito e funziona senza account. La rifinitura consuma token
+Claude Opus 5 ($5/1M input, $25/1M output): qualche centesimo a prompt.
