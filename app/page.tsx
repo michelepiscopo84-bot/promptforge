@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Chiave from "@/components/Chiave";
 import Modulo from "@/components/Modulo";
+import Visite from "@/components/Visite";
 import Risultato, { Anello } from "@/components/Risultato";
 import {
   applicaVariabili,
@@ -370,9 +371,12 @@ export default function Home() {
           Modulo, libreria e revisione restano nel tuo browser. Solo rifinitura e prova
           inviano il prompt a un server.
         </span>
-        <span>
-          {spec.target === "claude" ? "Formato XML" : "Formato markdown"} ·{" "}
-          {spec.modalita === "discorsivo" ? "paragrafo unico" : "a sezioni"}
+        <span className="piede-destra">
+          <Visite />
+          <span>
+            {spec.target === "claude" ? "Formato XML" : "Formato markdown"} ·{" "}
+            {spec.modalita === "discorsivo" ? "paragrafo unico" : "a sezioni"}
+          </span>
         </span>
       </footer>
     </div>

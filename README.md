@@ -124,8 +124,10 @@ app/
   globals.css            tema
   api/enhance/route.ts   rifinitura del prompt via Claude
   api/run/route.ts       banco di prova: esegue il prompt
+  api/visite/route.ts    contatore visite su Redis
 components/
   Chiave.tsx             pannello della chiave del visitatore
+  Visite.tsx             il contatore in fondo alla pagina
   Modulo.tsx             il modulo in sei sezioni
   Risultato.tsx          prompt, analisi, variabili, prova, libreria
 lib/
@@ -151,7 +153,22 @@ a esecuzione.
 
 ## Visite
 
-Il sito usa **Vercel Web Analytics**: nessun cookie, nessun dato personale, niente
-banner da mostrare. Va acceso una volta sola dal pannello Vercel — progetto
-promptforge, scheda **Analytics**, pulsante **Enable**. Da quel momento vedi lì
-visitatori, pagine viste e provenienza, con qualche minuto di ritardo.
+Due strumenti distinti, che rispondono a due domande diverse.
+
+**Il contatore in fondo alla pagina** mostra le visite totali a chiunque apra il
+sito. Richiede un archivio condiviso: su Vercel si collega in pochi clic dalla scheda
+**Storage** del progetto, scegliendo un database **Redis** (Upstash ha un piano
+gratuito). Vercel inietta da solo le variabili `KV_REST_API_URL` e
+`KV_REST_API_TOKEN`; il codice accetta anche i nomi `UPSTASH_REDIS_REST_*`. Dopo il
+collegamento serve un **Redeploy**.
+
+Finché nessun archivio è collegato il contatore **non compare affatto**, invece di
+mostrare uno zero che non significherebbe niente.
+
+Conta una visita per visitatore al giorno: l'indirizzo IP non viene mai memorizzato,
+solo un hash che scade in 24 ore e da cui non si risale a nessuno.
+
+**Vercel Web Analytics** è l'altra metà: invisibile sul sito, raccoglie visitatori,
+pagine viste e provenienza nella scheda **Analytics** del progetto. Niente cookie,
+nessun banner da mostrare. Attenzione: i blocchi pubblicità impediscono la
+registrazione, quindi le tue visite potrebbero non comparire.
