@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
@@ -20,7 +21,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="it">
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Conteggio visite di Vercel: nessun cookie, nessun dato personale.
+            Va acceso una volta dalla scheda Analytics del progetto. */}
+        <Analytics />
+      </body>
     </html>
   );
 }

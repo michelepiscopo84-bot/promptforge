@@ -209,23 +209,68 @@ function rendiCriteri(spec: PromptSpec): string {
  * I due formati di uscita
  * ------------------------------------------------------------------ */
 
-function strutturato(spec: PromptSpec): string {
-  const blocchi = sezioni(spec);
-  const esempi = rendiEsempi(spec);
-  const criteri = rendiCriteri(spec);
-
-  // Claude segue i tag XML meglio di qualsiasi altra convenzione.
+/** Rende una lista di sezioni nella convenzione del modello scelto. */
+function rendi(spec: PromptSpec, blocchi: Sezione[]): string[] {
   if (spec.target === "claude") {
-    const corpo = blocchi.map((s) => `<${s.tag}>\n${s.corpo}\n</${s.tag}>`);
-    if (esempi) corpo.push(esempi);
-    if (criteri) corpo.push(`<criteri_di_successo>\n${criteri}\n</criteri_di_successo>`);
-    return pulisci(corpo.join("\n\n"));
+    return blocchi.map((s) => `<${s.tag}>\n${s.corpo}\n</${s.tag}>`);
+  }
+  return blocchi.map((s) => `## ${s.titolo}\n${s.corpo}`);
+}
+
+/** Le sezioni finali, che non nascono dal ciclo su `sezioni()`. */
+function coda(spec: PromptSpec): Sezione[] {
+  const out: Sezione[] = [];
+  const criteri = rendiCriteri(spec);
+  if (criteri) out.push({ tag: "criteri_di_successo", titolo: "Criteri di successo", corpo: criteri });
+  return out;
+}
+
+function strutturato(spec: PromptSpec): string {
+  const corpo = rendi(spec, sezioni(spec));
+  const esempi = rendiEsempi(spec);
+  if (esempi) corpo.push(esempi);
+  corpo.push(...rendi(spec, coda(spec)));
+  return pulisci(corpo.join("\n\n"));
+}
+
+/**
+ * Divisione system/user: nel system finisce ciò che resta stabile fra una
+ * chiamata e l'altra, nel messaggio utente solo la richiesta e il materiale.
+ * È la forma in cui un prompt va davvero usato via API, e permette di sfruttare
+ * la cache sul prefisso.
+ */
+const NEL_MESSAGGIO = new Set(["obiettivo", "contesto"]);
+
+export function costruisciCoppia(spec: PromptSpec): { system: string; user: string } {
+  if (spec.modalita === "discorsivo") {
+    return { system: "", user: discorsivo(spec) };
   }
 
-  const corpo = blocchi.map((s) => `## ${s.titolo}\n${s.corpo}`);
-  if (esempi) corpo.push(esempi);
-  if (criteri) corpo.push(`## Criteri di successo\n${criteri}`);
-  return pulisci(corpo.join("\n\n"));
+  const tutte = sezioni(spec);
+  const perSystem = tutte.filter((s) => !NEL_MESSAGGIO.has(s.tag));
+  const perUser = tutte.filter((s) => NEL_MESSAGGIO.has(s.tag));
+
+  const system = rendi(spec, perSystem);
+  const esempi = rendiEsempi(spec);
+  if (esempi) system.push(esempi);
+  system.push(...rendi(spec, coda(spec)));
+
+  return {
+    system: pulisci(system.join("\n\n")),
+    user: pulisci(rendi(spec, perUser).join("\n\n")),
+  };
+}
+
+/** Il corpo della richiesta pronto da incollare in una chiamata API. */
+export function payloadApi(spec: PromptSpec, modello: string): string {
+  const { system, user } = costruisciCoppia(spec);
+  const corpo: Record<string, unknown> = {
+    model: modello,
+    max_tokens: 4096,
+  };
+  if (system) corpo.system = system;
+  corpo.messages = [{ role: "user", content: user || "..." }];
+  return JSON.stringify(corpo, null, 2);
 }
 
 function discorsivo(spec: PromptSpec): string {

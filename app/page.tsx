@@ -3,29 +3,43 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Modulo from "@/components/Modulo";
 import Risultato, { Anello } from "@/components/Risultato";
-import { applicaVariabili, costruisciPrompt, variabili } from "@/lib/builder";
+import {
+  applicaVariabili,
+  costruisciCoppia,
+  costruisciPrompt,
+  payloadApi,
+  variabili,
+} from "@/lib/builder";
+import { revisiona } from "@/lib/lint";
 import { PRESETS } from "@/lib/presets";
 import { diagnostica } from "@/lib/qualita";
 import { nuovoId, SPEC_VUOTA, type PromptSpec, type Salvato, type Target } from "@/lib/types";
 
 const K_SPEC = "promptforge:spec";
 const K_LIB = "promptforge:libreria";
+const MODELLO = "claude-opus-5";
 
-const TARGET: { id: Target; nome: string }[] = [
-  { id: "claude", nome: "Claude" },
-  { id: "gpt", nome: "GPT" },
-  { id: "gemini", nome: "Gemini" },
-  { id: "generico", nome: "Generico" },
+const TARGET: { id: Target; nome: string; nota: string }[] = [
+  { id: "claude", nome: "Claude", nota: "Sezioni con tag XML: la convenzione che Claude segue meglio" },
+  { id: "gpt", nome: "GPT", nota: "Sezioni con intestazioni markdown" },
+  { id: "gemini", nome: "Gemini", nota: "Sezioni con intestazioni markdown" },
+  { id: "generico", nome: "Generico", nota: "Sezioni con intestazioni markdown" },
 ];
+
+interface Prova {
+  risposta: string;
+  uso: { ingresso: number; uscita: number } | null;
+}
 
 export default function Home() {
   const [spec, setSpec] = useState<PromptSpec>(SPEC_VUOTA);
   const [preset, setPreset] = useState<string | null>(null);
   const [rifinito, setRifinito] = useState<string | null>(null);
-  const [vista, setVista] = useState<"generato" | "rifinito">("generato");
+  const [versione, setVersione] = useState<"generato" | "rifinito">("generato");
   const [valori, setValori] = useState<Record<string, string>>({});
   const [salvati, setSalvati] = useState<Salvato[]>([]);
-  const [caricamento, setCaricamento] = useState(false);
+  const [prova, setProva] = useState<Prova | null>(null);
+  const [inCorso, setInCorso] = useState<"rifinitura" | "prova" | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
   const [avviso, setAvviso] = useState<string | null>(null);
   const [aiDisponibile, setAiDisponibile] = useState<boolean | null>(null);
@@ -57,11 +71,25 @@ export default function Home() {
 
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
 
+  /* ----------------------------- derivati ----------------------------- */
+
   const generato = useMemo(() => costruisciPrompt(spec), [spec]);
+  const coppia = useMemo(() => costruisciCoppia(spec), [spec]);
   const diagnosi = useMemo(() => diagnostica(spec), [spec]);
-  const base = vista === "rifinito" && rifinito ? rifinito : generato;
+  const rilievi = useMemo(() => revisiona(spec), [spec]);
+
+  const base = versione === "rifinito" && rifinito ? rifinito : generato;
   const nomiVariabili = useMemo(() => variabili(base), [base]);
+
   const prompt = useMemo(() => applicaVariabili(base, valori), [base, valori]);
+  const system = useMemo(() => applicaVariabili(coppia.system, valori), [coppia, valori]);
+  const user = useMemo(() => applicaVariabili(coppia.user, valori), [coppia, valori]);
+  const payload = useMemo(
+    () => applicaVariabili(payloadApi(spec, MODELLO), valori),
+    [spec, valori],
+  );
+
+  /* ----------------------------- utilità ----------------------------- */
 
   function segnala(msg: string) {
     setAvviso(msg);
@@ -73,7 +101,7 @@ export default function Home() {
     setSpec((s) => ({ ...s, [campo]: valore }));
     // La versione rifinita si riferisce al prompt precedente: non vale più.
     setRifinito(null);
-    setVista("generato");
+    setVersione("generato");
   }
 
   function applicaPreset(id: string) {
@@ -88,7 +116,8 @@ export default function Home() {
     }
     setValori({});
     setRifinito(null);
-    setVista("generato");
+    setProva(null);
+    setVersione("generato");
   }
 
   /* ----------------------------- libreria ----------------------------- */
@@ -107,10 +136,7 @@ export default function Home() {
       spec.obiettivo.trim().split("\n")[0].slice(0, 48) || "Prompt senza titolo";
     const nome = window.prompt("Nome del prompt", proposto);
     if (!nome) return;
-    scriviLibreria([
-      { id: nuovoId(), nome: nome.trim(), data: Date.now(), spec },
-      ...salvati,
-    ]);
+    scriviLibreria([{ id: nuovoId(), nome: nome.trim(), data: Date.now(), spec }, ...salvati]);
     segnala("Salvato nella libreria.");
   }
 
@@ -120,7 +146,8 @@ export default function Home() {
     setSpec({ ...SPEC_VUOTA, ...v.spec });
     setPreset(null);
     setRifinito(null);
-    setVista("generato");
+    setProva(null);
+    setVersione("generato");
     setValori({});
     segnala(`Aperto: ${v.nome}`);
   }
@@ -131,10 +158,11 @@ export default function Home() {
 
   /* ----------------------------- azioni ----------------------------- */
 
-  async function copia() {
+  async function copia(testo: string, cosa: string) {
+    if (!testo) return;
     try {
-      await navigator.clipboard.writeText(prompt);
-      segnala("Prompt copiato negli appunti.");
+      await navigator.clipboard.writeText(testo);
+      segnala(`${cosa} copiato negli appunti.`);
     } catch {
       setErrore("Il browser ha bloccato la copia: seleziona il testo a mano.");
     }
@@ -152,7 +180,7 @@ export default function Home() {
 
   async function rifinisci() {
     setErrore(null);
-    setCaricamento(true);
+    setInCorso("rifinitura");
     try {
       const res = await fetch("/api/enhance", {
         method: "POST",
@@ -165,12 +193,35 @@ export default function Home() {
         return;
       }
       setRifinito(dati.prompt);
-      setVista("rifinito");
+      setVersione("rifinito");
       if (dati.troncato) segnala("Risposta troncata: il prompt è molto lungo.");
     } catch {
       setErrore("Impossibile contattare il server.");
     } finally {
-      setCaricamento(false);
+      setInCorso(null);
+    }
+  }
+
+  async function esegui() {
+    setErrore(null);
+    setInCorso("prova");
+    try {
+      const res = await fetch("/api/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ system, user: user || prompt }),
+      });
+      const dati = await res.json();
+      if (!res.ok) {
+        setErrore(dati.error ?? "Errore durante l'esecuzione.");
+        return;
+      }
+      setProva({ risposta: dati.risposta, uso: dati.uso ?? null });
+      if (dati.troncata) segnala("Risposta troncata al limite di token.");
+    } catch {
+      setErrore("Impossibile contattare il server.");
+    } finally {
+      setInCorso(null);
     }
   }
 
@@ -178,7 +229,8 @@ export default function Home() {
     setSpec(SPEC_VUOTA);
     setPreset(null);
     setRifinito(null);
-    setVista("generato");
+    setProva(null);
+    setVersione("generato");
     setValori({});
     setErrore(null);
   }
@@ -201,11 +253,7 @@ export default function Home() {
               type="button"
               aria-pressed={spec.target === t.id}
               onClick={() => aggiorna("target", t.id)}
-              title={
-                t.id === "claude"
-                  ? "Sezioni con tag XML: la convenzione che Claude segue meglio"
-                  : "Sezioni in markdown"
-              }
+              title={t.nota}
             >
               {t.nome}
             </button>
@@ -222,19 +270,18 @@ export default function Home() {
       </header>
 
       <div className="grid">
-        <Modulo
-          spec={spec}
-          aggiorna={aggiorna}
-          preset={preset}
-          applicaPreset={applicaPreset}
-        />
+        <Modulo spec={spec} aggiorna={aggiorna} preset={preset} applicaPreset={applicaPreset} />
 
         <Risultato
           prompt={prompt}
+          system={system}
+          user={user}
+          payload={payload}
           rifinito={rifinito}
-          vista={vista}
-          setVista={setVista}
+          versione={versione}
+          setVersione={setVersione}
           diagnosi={diagnosi}
+          rilievi={rilievi}
           variabili={nomiVariabili}
           valori={valori}
           setValore={(n, v) => setValori((x) => ({ ...x, [n]: v }))}
@@ -245,8 +292,10 @@ export default function Home() {
           copia={copia}
           scarica={scarica}
           rifinisci={rifinisci}
+          esegui={esegui}
           azzera={azzera}
-          caricamento={caricamento}
+          prova={prova}
+          inCorso={inCorso}
           aiDisponibile={aiDisponibile}
           errore={errore}
           avviso={avviso}
@@ -255,8 +304,8 @@ export default function Home() {
 
       <footer className="piede">
         <span>
-          Modulo e libreria restano nel tuo browser. Solo la rifinitura con AI invia
-          il prompt a un server.
+          Modulo, libreria e revisione restano nel tuo browser. Solo rifinitura e prova
+          inviano il prompt a un server.
         </span>
         <span>
           {spec.target === "claude" ? "Formato XML" : "Formato markdown"} ·{" "}

@@ -33,9 +33,25 @@ Più il **few-shot** con coppie input/output, i **casi limite** dichiarati in an
 lo **schema di output** esatto per gli usi automatizzati, e i **criteri di successo**
 su cui si appoggia la revisione finale.
 
+**Revisione automatica del testo.** Analizza quello che scrivi tu, non l'impalcatura:
+segnala gli aggettivi valutativi senza criterio («chiaro», «professionale»), le
+lunghezze a parole invece che a numeri, le quantità indefinite, le istruzioni
+formulate come suggerimenti («cerca di…»), le formule di cortesia e gli assoluti che
+rischiano di contraddirsi. Ogni rilievo cita il termine trovato e dice come
+riscriverlo. I divieti sono esclusi dal controllo: lì nominare il difetto è il punto.
+
+**Divisione system / user.** Le istruzioni stabili nel system, richiesta e materiale
+nel messaggio utente: è la forma in cui un prompt va davvero usato via API, e
+permette di sfruttare la cache sul prefisso. La vista **JSON API** dà il corpo della
+richiesta già pronto da incollare.
+
+**Banco di prova.** Esegue il prompt su Claude e mostra cosa produce davvero, con
+token consumati e costo della singola esecuzione. Il punteggio misura la forma, la
+prova misura il risultato.
+
 **Punteggio di qualità 0-100.** Pesato su quanto ogni elemento sposta davvero il
 risultato: gli esempi valgono quanto il contratto di output, i destinatari molto meno.
-La scheda *Qualità* elenca cosa manca e perché conta.
+La scheda *Analisi* elenca cosa manca e perché conta.
 
 **Variabili.** Scrivi `{{cliente}}` in qualsiasi campo: compare nella scheda
 *Variabili*, la compili lì e il prompt che copi è già pronto. Il modello resta
@@ -89,13 +105,15 @@ app/
   page.tsx               stato e composizione
   layout.tsx             shell e metadata
   globals.css            tema
-  api/enhance/route.ts   rifinitura via Claude
+  api/enhance/route.ts   rifinitura del prompt via Claude
+  api/run/route.ts       banco di prova: esegue il prompt
 components/
   Modulo.tsx             il modulo in sei sezioni
-  Risultato.tsx          output, qualità, variabili, libreria
+  Risultato.tsx          prompt, analisi, variabili, prova, libreria
 lib/
   types.ts               la specifica del prompt
-  builder.ts             generatore, tecniche, variabili
+  builder.ts             generatore, tecniche, system/user, variabili
+  lint.ts                revisione del testo scritto dall'utente
   qualita.ts             punteggio pesato e diagnosi
   presets.ts             i dieci preset
 ```
@@ -108,3 +126,10 @@ i pesi in `lib/qualita.ts`.
 
 Il generatore è gratuito e funziona senza account. La rifinitura consuma token
 Claude Opus 5 ($5/1M input, $25/1M output): qualche centesimo a prompt.
+
+## Visite
+
+Il sito usa **Vercel Web Analytics**: nessun cookie, nessun dato personale, niente
+banner da mostrare. Va acceso una volta sola dal pannello Vercel — progetto
+promptforge, scheda **Analytics**, pulsante **Enable**. Da quel momento vedi lì
+visitatori, pagine viste e provenienza, con qualche minuto di ritardo.
