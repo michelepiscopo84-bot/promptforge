@@ -882,3 +882,57 @@ code {
   border-radius: 4px;
   padding: 1px 5px;
 }
+
+/* ============================ chiave del visitatore ============================ */
+
+.chiave-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.chiave-btn .pallino {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex: none;
+}
+
+.chiave-btn.attiva {
+  border-color: rgba(82, 209, 154, 0.4);
+  color: var(--text);
+}
+
+.chiave-btn.attiva .pallino {
+  background: var(--green);
+  box-shadow: 0 0 7px rgba(82, 209, 154, 0.6);
+}
+
+.chiave-pannello {
+  margin-bottom: 18px;
+  border-color: var(--line-2);
+}
+
+.chiave-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chiave-riga {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.chiave-riga input {
+  flex: 1;
+  min-width: 220px;
+}
+
+.tips a {
+  color: var(--accent-2);
+}

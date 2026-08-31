@@ -64,7 +64,26 @@ continui a modificarlo.
 Code review, Analisi dati, Estrazione dati (JSON), Contenuti editoriali,
 Copy commerciale, Consulenza, System prompt, Traduzione, Immagini.
 
-## Rifinitura AI (opzionale)
+## La chiave la mette chi usa il sito
+
+Le due funzioni che parlano con Claude — *Rifinisci con AI* e *Prova* — usano la
+chiave del visitatore, non una del sito. Il pulsante **Chiave** in alto apre il
+pannello dove incollarla.
+
+- Resta salvata **solo nel browser di chi la inserisce** (`localStorage`).
+- Viaggia dentro la singola richiesta, in un'intestazione, per parlare con
+  Anthropic: non viene scritta su disco né nei log del server.
+- Il consumo lo paga chi la possiede. Chi pubblica il sito non spende nulla e non
+  rischia bollette a sorpresa.
+- Chi non ne ha una usa tutto il resto: generatore, revisione, punteggio,
+  variabili e libreria non richiedono alcuna chiave.
+
+Se invece imposti `ANTHROPIC_API_KEY` fra le variabili d'ambiente, il sito ne ha una
+propria e le funzioni AI restano disponibili per chiunque **a tue spese**: su un sito
+pubblico è sconsigliato senza un limite di richieste. Quando entrambe sono presenti,
+vince quella del visitatore.
+
+## Rifinitura AI
 
 Il pulsante *Rifinisci con AI* manda il prompt a `/api/enhance`, che chiama
 Claude Opus 5 con istruzioni precise: togliere ambiguità, rendere azionabili le
@@ -72,7 +91,7 @@ istruzioni non verificabili, eliminare contraddizioni fra sezioni — senza allu
 il prompt, senza inventare requisiti, conservando la convenzione (XML o markdown) e
 gli esempi.
 
-Senza `ANTHROPIC_API_KEY` il pulsante è disattivato e tutto il resto funziona.
+Senza chiave il pulsante è disattivato e tutto il resto funziona.
 
 ## In locale
 
@@ -81,11 +100,9 @@ npm install
 npm run dev
 ```
 
-Per abilitare la rifinitura, crea `.env.local` (vedi `.env.example`):
-
-```
-ANTHROPIC_API_KEY=sk-ant-...
-```
+Le funzioni AI si abilitano incollando la propria chiave nel pannello **Chiave**,
+senza toccare nessun file. In alternativa, per averle sempre attive in locale, crea
+`.env.local` (vedi `.env.example`).
 
 ## Deploy su Vercel via GitHub
 
@@ -108,10 +125,13 @@ app/
   api/enhance/route.ts   rifinitura del prompt via Claude
   api/run/route.ts       banco di prova: esegue il prompt
 components/
+  Chiave.tsx             pannello della chiave del visitatore
   Modulo.tsx             il modulo in sei sezioni
   Risultato.tsx          prompt, analisi, variabili, prova, libreria
 lib/
   types.ts               la specifica del prompt
+  chiave.ts              nome dell'intestazione e controllo di forma
+  chiave-server.ts       da dove prendere la chiave: visitatore o ambiente
   builder.ts             generatore, tecniche, system/user, variabili
   lint.ts                revisione del testo scritto dall'utente
   qualita.ts             punteggio pesato e diagnosi
@@ -124,8 +144,10 @@ i pesi in `lib/qualita.ts`.
 
 ## Costi
 
-Il generatore è gratuito e funziona senza account. La rifinitura consuma token
-Claude Opus 5 ($5/1M input, $25/1M output): qualche centesimo a prompt.
+Il generatore, la revisione, il punteggio, le variabili e la libreria sono gratuiti e
+non richiedono alcun account. Rifinitura e prova consumano token Claude Opus 5
+($5/1M input, $25/1M output) sull'account di chi mette la chiave: qualche centesimo
+a esecuzione.
 
 ## Visite
 

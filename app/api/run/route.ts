@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
+import { chiaveDi } from "@/lib/chiave-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -12,11 +13,12 @@ const LIMITE = 24000;
  * Serve a vedere cosa produce davvero, non cosa speri che produca.
  */
 export async function POST(req: Request) {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  const chiave = chiaveDi(req);
+  if (!chiave) {
     return NextResponse.json(
       {
         error:
-          "Chiave API non configurata. Aggiungi ANTHROPIC_API_KEY nelle Environment Variables di Vercel e rilancia il deploy.",
+          "Serve una chiave API. Aprine una dal pulsante Chiave in alto: resta salvata solo nel tuo browser.",
       },
       { status: 501 },
     );
@@ -45,7 +47,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const client = new Anthropic();
+  const client = new Anthropic({ apiKey: chiave });
 
   try {
     const response = await client.messages.create({
@@ -79,7 +81,10 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     if (error instanceof Anthropic.AuthenticationError) {
-      return NextResponse.json({ error: "Chiave API non valida." }, { status: 401 });
+      return NextResponse.json(
+        { error: "Chiave API rifiutata da Anthropic: controlla di averla copiata per intero." },
+        { status: 401 },
+      );
     }
     if (error instanceof Anthropic.RateLimitError) {
       return NextResponse.json(

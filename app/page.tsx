@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Chiave from "@/components/Chiave";
 import Modulo from "@/components/Modulo";
 import Risultato, { Anello } from "@/components/Risultato";
 import {
@@ -10,6 +11,7 @@ import {
   payloadApi,
   variabili,
 } from "@/lib/builder";
+import { chiavePlausibile, INTESTAZIONE_CHIAVE } from "@/lib/chiave";
 import { revisiona } from "@/lib/lint";
 import { PRESETS } from "@/lib/presets";
 import { diagnostica } from "@/lib/qualita";
@@ -17,6 +19,7 @@ import { nuovoId, SPEC_VUOTA, type PromptSpec, type Salvato, type Target } from 
 
 const K_SPEC = "promptforge:spec";
 const K_LIB = "promptforge:libreria";
+const K_CHIAVE = "promptforge:chiave";
 const MODELLO = "claude-opus-5";
 
 const TARGET: { id: Target; nome: string; nota: string }[] = [
@@ -42,7 +45,9 @@ export default function Home() {
   const [inCorso, setInCorso] = useState<"rifinitura" | "prova" | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
   const [avviso, setAvviso] = useState<string | null>(null);
-  const [aiDisponibile, setAiDisponibile] = useState<boolean | null>(null);
+  const [chiaveSito, setChiaveSito] = useState<boolean | null>(null);
+  const [chiave, setChiave] = useState("");
+  const [pannelloChiave, setPannelloChiave] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* Ripristino della sessione e verifica della chiave API lato server. */
@@ -52,13 +57,15 @@ export default function Home() {
       if (s) setSpec({ ...SPEC_VUOTA, ...JSON.parse(s) });
       const l = localStorage.getItem(K_LIB);
       if (l) setSalvati(JSON.parse(l));
+      const c = localStorage.getItem(K_CHIAVE);
+      if (c) setChiave(c);
     } catch {
       /* archivio non disponibile: si parte puliti */
     }
     fetch("/api/enhance")
       .then((r) => r.json())
-      .then((d) => setAiDisponibile(Boolean(d.disponibile)))
-      .catch(() => setAiDisponibile(false));
+      .then((d) => setChiaveSito(Boolean(d.disponibile)))
+      .catch(() => setChiaveSito(false));
   }, []);
 
   useEffect(() => {
@@ -88,6 +95,38 @@ export default function Home() {
     () => applicaVariabili(payloadApi(spec, MODELLO), valori),
     [spec, valori],
   );
+
+  // Basta una delle due: la chiave del visitatore o quella del sito.
+  const miaChiave = chiavePlausibile(chiave);
+  const aiDisponibile = chiaveSito === null ? null : chiaveSito || miaChiave;
+
+  function intestazioni(): HeadersInit {
+    const h: Record<string, string> = { "Content-Type": "application/json" };
+    if (miaChiave) h[INTESTAZIONE_CHIAVE] = chiave.trim();
+    return h;
+  }
+
+  function salvaChiave(c: string) {
+    setChiave(c);
+    try {
+      localStorage.setItem(K_CHIAVE, c);
+    } catch {
+      /* niente archivio: vale solo per questa sessione */
+    }
+    setPannelloChiave(false);
+    setErrore(null);
+    segnala("Chiave salvata in questo browser.");
+  }
+
+  function dimenticaChiave() {
+    setChiave("");
+    try {
+      localStorage.removeItem(K_CHIAVE);
+    } catch {
+      /* ignora */
+    }
+    segnala("Chiave rimossa da questo browser.");
+  }
 
   /* ----------------------------- utilità ----------------------------- */
 
@@ -184,7 +223,7 @@ export default function Home() {
     try {
       const res = await fetch("/api/enhance", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: intestazioni(),
         body: JSON.stringify({ prompt: generato }),
       });
       const dati = await res.json();
@@ -208,7 +247,7 @@ export default function Home() {
     try {
       const res = await fetch("/api/run", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: intestazioni(),
         body: JSON.stringify({ system, user: user || prompt }),
       });
       const dati = await res.json();
@@ -260,6 +299,20 @@ export default function Home() {
           ))}
         </div>
 
+        <button
+          type="button"
+          className={`btn chiave-btn ${miaChiave ? "attiva" : ""}`}
+          onClick={() => setPannelloChiave((v) => !v)}
+          title={
+            miaChiave
+              ? "Chiave impostata in questo browser"
+              : "Imposta la tua chiave per Rifinisci e Prova"
+          }
+        >
+          <span className="pallino" aria-hidden="true" />
+          Chiave
+        </button>
+
         <div className="score">
           <Anello valore={diagnosi.punteggio} />
           <span className="score-txt">
@@ -268,6 +321,16 @@ export default function Home() {
           </span>
         </div>
       </header>
+
+      {pannelloChiave && (
+        <Chiave
+          chiave={chiave}
+          salva={salvaChiave}
+          dimentica={dimenticaChiave}
+          chiudi={() => setPannelloChiave(false)}
+          chiaveDelSito={chiaveSito === true}
+        />
+      )}
 
       <div className="grid">
         <Modulo spec={spec} aggiorna={aggiorna} preset={preset} applicaPreset={applicaPreset} />

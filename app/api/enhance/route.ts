@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
+import { chiaveDi } from "@/lib/chiave-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -39,17 +40,18 @@ Cosa non fai mai:
 
 Restituisci solo il prompt riscritto, pronto da incollare.`;
 
-/** Il pulsante "Migliora con AI" chiede qui se la chiave è configurata. */
+/** Dice al browser se il sito ha una chiave propria: se no, la mette il visitatore. */
 export async function GET() {
   return NextResponse.json({ disponibile: Boolean(process.env.ANTHROPIC_API_KEY) });
 }
 
 export async function POST(req: Request) {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  const chiave = chiaveDi(req);
+  if (!chiave) {
     return NextResponse.json(
       {
         error:
-          "Chiave API non configurata. Aggiungi ANTHROPIC_API_KEY nelle Environment Variables di Vercel (o in .env.local in locale) e rilancia il deploy.",
+          "Serve una chiave API. Aprine una dal pulsante Chiave in alto: resta salvata solo nel tuo browser.",
       },
       { status: 501 },
     );
@@ -78,7 +80,7 @@ export async function POST(req: Request) {
       ? `Riscrivi questo prompt tenendo conto di questa indicazione: ${note.trim()}\n\n---\n\n${prompt}`
       : `Riscrivi questo prompt:\n\n---\n\n${prompt}`;
 
-  const client = new Anthropic();
+  const client = new Anthropic({ apiKey: chiave });
 
   try {
     const response = await client.messages.create({
@@ -112,7 +114,10 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     if (error instanceof Anthropic.AuthenticationError) {
-      return NextResponse.json({ error: "Chiave API non valida." }, { status: 401 });
+      return NextResponse.json(
+        { error: "Chiave API rifiutata da Anthropic: controlla di averla copiata per intero." },
+        { status: 401 },
+      );
     }
     if (error instanceof Anthropic.RateLimitError) {
       return NextResponse.json(
